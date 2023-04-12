@@ -1,0 +1,13 @@
+# This file contains values from Cookiecutter
+
+default_context:
+  project_name: "goatl"
+  project_description: "Greatest of all time logger"
+  organization: "goatl"
+  license: "MIT"
+  minimal_python_version: 3.9
+  github_name: "goatl"
+  email: "EytanDn@gmail.com"
+  version: "0.1.0"
+  line_length: "88"
+  create_example_template: "none"
