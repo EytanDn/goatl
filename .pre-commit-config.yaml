@@ -1,36 +1,43 @@
 default_language_version:
   python: python3.9
-
-default_stages: [commit, push]
-
+default_stages:
+- commit
+- push
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.5.0
-    hooks:
-      - id: check-yaml
-      - id: end-of-file-fixer
-        exclude: LICENSE
-
-  - repo: local
-    hooks:
-      - id: pyupgrade
-        name: pyupgrade
-        entry: poetry run pyupgrade --py39-plus
-        types: [python]
-        language: system
-
-  - repo: local
-    hooks:
-      - id: isort
-        name: isort
-        entry: poetry run isort --settings-path pyproject.toml
-        types: [python]
-        language: system
-
-  - repo: local
-    hooks:
-      - id: black
-        name: black
-        entry: poetry run black --config pyproject.toml
-        types: [python]
-        language: system
+- hooks:
+  - id: check-yaml
+  - exclude: LICENSE
+    id: end-of-file-fixer
+  repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v2.5.0
+- hooks:
+  - entry: poetry run pyupgrade --py39-plus
+    id: pyupgrade
+    language: system
+    name: pyupgrade
+    types:
+    - python
+  repo: local
+- hooks:
+  - entry: poetry run isort --settings-path pyproject.toml
+    id: isort
+    language: system
+    name: isort
+    types:
+    - python
+  repo: local
+- hooks:
+  - entry: poetry run black --config pyproject.toml
+    id: black
+    language: system
+    name: black
+    types:
+    - python
+  repo: local
+- hooks:
+  - id: commitizen
+  - id: commitizen-branch
+    stages:
+    - push
+  repo: https://github.com/commitizen-tools/commitizen
+  rev: v3.1.1
