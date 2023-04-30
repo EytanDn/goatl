@@ -17,3 +17,7 @@ def get_version() -> str:
 
 
 version: str = get_version()
+
+from .core import log
+
+__all__ = ["log"]

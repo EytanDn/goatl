@@ -5,7 +5,6 @@ from logging import(
 import functools
 import inspect
 from typing import Callable
-from dataclasses import dataclass
 
 # TODO: add handler configuration to decorator
 logging.basicConfig(handlers=[StreamHandler()], level=INFO)
