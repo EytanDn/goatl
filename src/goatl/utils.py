@@ -20,7 +20,9 @@ def _transfer_class_meta(wrapped: type, wrapper: type) -> type:
     wrapper.__module__ = wrapped.__module__
     wrapper.__qualname__ = wrapped.__qualname__
     wrapper.__doc__ = wrapped.__doc__
-    wrapper.__annotations__ = wrapped.__annotations__
+    
+    if hasattr(wrapped, '__annotations__'):
+        wrapper.__annotations__ = wrapped.__annotations__
     
     return wrapper
 
