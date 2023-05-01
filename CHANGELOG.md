@@ -1,3 +1,10 @@
+## 0.5.2 (2023-05-01)
+
+### Fix
+
+- makefile test make
+- compatiable to 3.9
+
 ## 0.5.1 (2023-05-01)
 
 ### Fix
