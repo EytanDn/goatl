@@ -2,7 +2,7 @@ import logging
 import inspect
 import functools
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Union, TypeVar
+from typing import Any, Callable, Optional, Union, TypeVar
 from .utils import _wrap_and_bind, _transfer_class_meta
 
 import sys
@@ -123,9 +123,9 @@ class ClassLogParams:
                 "level": self.kwargs.get("private_level", None)
             }
             self.private_log = CallLogParams(kwargs={**self.kwargs, **p_kwargs})
-            
-Loggable = TypeVar('Loggable', str, bool, int, float, list, dict, tuple, set, None)
-Wrappable = TypeVar('Wrappable', Callable, type)
+
+Reprable = TypeVar('Reprable', Callable, type)  
+Wrappable = Union[Callable, type(None)]
 
 def _wrap_function(func: Callable,
                   params: CallLogParams) -> Callable:
@@ -183,8 +183,8 @@ def _wrap(wrapped: Wrappable = None, **kwargs) -> Wrappable:
         return _wrap_function(wrapped, call_log_params)
 
 
-def log(magic: Union[Wrappable, Loggable]=None, /,
-        *args,
+def log(magic: Union[Wrappable, Reprable]=None, /,
+        *args: Optional[tuple[Any]],
         message: Optional[str]=None,
         level: Optional[int]=None,
         logger: Optional[logging.Logger]=None,
@@ -273,7 +273,7 @@ def log(magic: Union[Wrappable, Loggable]=None, /,
     """
     
         
-    if isinstance(magic, Union[type, Callable, type(None)]):
+    if isinstance(magic, Wrappable):
         log_kwargs = dict(
             message=message,
             level=level,
