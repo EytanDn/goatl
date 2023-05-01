@@ -1,3 +1,13 @@
+## Unreleased
+
+### Fix
+
+- 3.9 annotations
+- fix build already
+- maybe hooks folder?
+- sneaky second paths
+- hooks will fix cov maybe?
+
 ## 0.5.2 (2023-05-01)
 
 ### Fix
