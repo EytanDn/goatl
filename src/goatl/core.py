@@ -316,6 +316,9 @@ def log(magic: Union[Wrappable, Loggable]=None, /,
             return decorate
         return decorate(magic)
     else:
+        if level is None: # TODO: maybe search for level in current score?
+            level = logging.INFO
+        
         Log(message=magic, level=level, logger=logger)(*args, **kwargs)
 
 info: Callable = functools.partial(log, level=logging.INFO)
