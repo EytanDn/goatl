@@ -126,10 +126,17 @@ class TestFuncLogDecorator:
         def inner_func():
             return func["func"]()
 
-        inner_func()
 
-        assert caplog.records[0].levelname == "INFO"
-        assert caplog.records[1].levelname == "DEBUG"
+        with caplog.at_level(logging.DEBUG):
+            inner_func()
+            assert caplog.records[0].message == "called inner_func with () {}"
+            assert caplog.records[0].levelno == logging.INFO
+            assert caplog.records[1].message == "inner_func returned %s" % func["return_value"]
+            assert caplog.records[1].levelno == logging.DEBUG
+            
+        capture = capsys.readouterr()
+        assert capture.out.strip() == func['print_something']
+        
 
     def test_log_all_logs_go_to_level(self, caplog, level):
 
@@ -137,21 +144,11 @@ class TestFuncLogDecorator:
         def func():
             pass
 
-        func()
+        with caplog.at_level(level):
+            func()
 
-        for record in caplog.records:
-            assert record.levelno == level
-
-    def test_log_level_and_another(self, caplog, level):
-        pass
-        # @goatl.log(level=logging.DEBUG, call=level)
-        # def func():
-        #     pass
-
-        # func()
-        # assert caplog.records[0].levelno == level
-        # for record in caplog.records[1:]:
-        #     assert record.levelno == logging.DEBUG
+            for record in caplog.records:
+                assert record.levelno == level
 
 
 class TestClassLogDecorator:
@@ -167,7 +164,9 @@ class TestClassLogDecorator:
                 @goatl.log
                 class Class:
                     pass
-
+                
+        assert Class.__name__ == "Class"
+        assert Class.__module__ == __name__
 
     def test_log_doesnt_meddle_class(self, func, caplog, capsys):
         """Test that the log decorator doesn't meddle with the class."""
@@ -203,30 +202,81 @@ class TestClassLogDecorator:
             def func(self):
                 pass
 
+        with caplog.at_level(level):
+            instance = Class()
+            instance.func()
+
+            assert caplog.records[0].message == "Initialized Class with () {}"
+            assert caplog.records[1].message == "called func with (%s,) {}" % instance
+            assert caplog.records[2].message == "func returned None"
+
+            for record in caplog.records:
+                assert record.levelno == level
+                
+
+    def test_private_method_no_log(self, caplog):
+
+        @goatl.log
+        class Class:
+            def _func(self):
+                pass
+            
+            def __str__(self):
+                return "Class"
+
         instance = Class()
-        instance.func()
 
-        for record in caplog.records:
-            assert record.levelno == level
+        caplog.clear()
 
-        assert len(caplog.records) == 3
-
-    def test_different_levels_to_members(self, caplog, level):
-
-        # @goatl.log(level=logging.DEBUG, call=level, return_=level)
-        # class Class:
-        #     def func(self):
-        #         pass
-
-        # instance = Class()
-
-        # caplog.clear()
-
-        # instance.func()
-
-        # for record in caplog.records:
-        #     assert record.levelno == level
-
-        # assert len(caplog.records) == 2
-        pass
+        instance._func()
+        str(instance)
+        
+        assert len(caplog.records) == 0
+    
+    def test_private_method_override_wrap(self, caplog):
+        @goatl.log
+        class Class:
+            @goatl.log
+            def _func(self):
+                pass
+            
+        
+        with caplog.at_level(logging.INFO):
+            instance = Class()
+            
+            assert caplog.records[0].message == "Initialized Class with () {}"
+            
+        caplog.clear()
+            
+        with caplog.at_level(logging.DEBUG):
+            instance._func()
+            
+            assert caplog.records[0].message == "called _func with (%s,) {}" % instance
+            assert caplog.records[0].levelno == logging.INFO
+            assert caplog.records[1].message == "_func returned None"
+            assert caplog.records[1].levelno == logging.DEBUG
+    
+    def test_private_method_override_wrap_at_level(self, caplog, level):
+        @goatl.log
+        class Class:
+            @goatl.log(level=level)
+            def _func(self):
+                pass
+            
+        
+        with caplog.at_level(logging.INFO):
+            instance = Class()
+            
+            assert caplog.records[0].message == "Initialized Class with () {}"
+            
+        caplog.clear()
+            
+        with caplog.at_level(level):
+            instance._func()
+            
+            assert caplog.records[0].message == "called _func with (%s,) {}" % instance
+            assert caplog.records[1].message == "_func returned None"
+            
+            for record in caplog.records:
+                assert record.levelno == level
 

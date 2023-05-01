@@ -1,15 +1,14 @@
 import logging
 import inspect
 import functools
-import sys
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Union, TypeVar
 
-_logger = logging.getLogger()
-handler = logging.StreamHandler(stream=sys.stdout)
-handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-_logger.addHandler(handler)
-_logger.setLevel(logging.DEBUG)
+# _logger = logging.getLogger()
+# handler = logging.StreamHandler(stream=sys.stdout)
+# handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+# _logger.addHandler(handler)
+# _logger.setLevel(logging.DEBUG)
 
 class BraceMessage(object):
     def __init__(self, fmt, *args, **kwargs):
@@ -172,75 +171,76 @@ def log(magic: Union[Wrappable, Loggable]=None, *args,
         level: int=None,
         logger: logging.Logger=None,
         **kwargs) -> Union[Wrappable, None]:
-    # """catch-all log method of goatl
+    """catch-all log method of goatl
     
-    # ## mymodule.py:
-    # >>> from goatl import log
     
-    # ### function 
-    # log can be used in a similar to the logging module
+    ## mymodule.py:
+    >>> from goatl import log
+        
+    ### function:
+    log can be used in a similar to the logging module
     
-    # >>> log("hello world")
-    # >>> # INFO:root:hello world
+    >>> log("hello world")
+    ... # INFO:root:hello world
     
-    # >>> log.debug("hello world")
-    # >>> # DEBUG:root:hello world
+    >>> log.debug("hello world")
+    ... # DEBUG:root:hello world 
 
     # ### method wrapper: 
-    # it will log the function call and return value 
+    # it will log the function call and return value
+    
     # >>> @log
-    # >>> def foo(x):
-    # >>>     return x
-
+    # ... def foo(x):
+    # ...    return x * 2
     # >>> foo(21)
-    # >>> # INFO:root:called foo with x=21
-    # >>> # DEBUG:root:foo returned 21
+    # 42
+    # ... # INFO:root:called foo with x=21
+    # ... # DEBUG:root:foo returned 42
     
-    # ### class decorator: 
-    # it will apply the log method to all methods of the class
-    # __init__ which will be logged as an initialization
-    # private methods (i.e methods starting with _) will not be logged by default
-    # property getters and setters will not be logged by default # TODO:decide on this
     
-    # >>> @log
-    # >>> class Foo:
-    # >>>     def __init__(self, x):
-    # >>>         self.x = x
+    ### class decorator: 
+    it will apply the log method to all methods of the class
+    __init__ which will be logged as an initialization
+    private methods (i.e methods starting with _) will not be logged by default
+    property getters and setters will not be logged by default # TODO:decide on this
     
-    # >>>     def bar(self):
-    # >>>         return self.x * 2
-    
-    # >>> Foo(21).bar()
-    # >>> # INFO:root:Initialized Foo <@objectid>  with x=21
-    # >>> # INFO:root:called Foo.bar with self=<@objectid>
-    # >>> # DEBUG:root:Foo.bar returned 42
+    ```python
+    @log
+    class Foo:
+        def __init__(self, x):
+            self.x = x
+        def bar(self):
+            return self.x * 2 
+    Foo(21).bar()
+    # INFO:root:Initialized Foo <@objectid>  with x=21
+    # INFO:root:called Foo.bar with self=<@objectid>
+    # DEBUG:root:Foo.bar returned 42
+    ```
 
-    # ## Customization
-    # method and class decoration is highly customizable
-    # few examples of possible customizations:
+    ## Customization
+    method and class decoration is highly customizable
+    few examples of possible customizations:
     
-    # ### Custom log level:
+    ### Custom log level:
     # >>> @log(level="DEBUG", return_level="INFO")
     # >>> def foo(x):
     # >>>     return x * 2
-    
     # >>> foo(21)
     # >>> # DEBUG:root:called foo with x=21
     # >>> # INFO:root:foo returned 42
     
-    # ### Custom log message for class one class method:
+    ### Custom log message for class one class method:
     # >>> @log
     # >>> class Foo:
-    # >>>     @log(message="[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s")
+    # >>>    @log(message="[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s")
     # >>>    def bar(self):
     # >>>         return 42
-    
     # >>> Foo().bar()
     # >>> # [2021-01-01 00:00:00] INFO: 42 from Foo.bar
 
-    # see the documentation for more details
-    # Args:
-    # """
+    see the documentation for more details
+    Args:
+    """
     
     if isinstance(magic, Union[type, Callable, type(None)]):
         
