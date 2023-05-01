@@ -2,6 +2,9 @@
 """Greatest of all time logger"""
 
 import sys
+from .core import log
+from logging import DEBUG, INFO, WARNING, ERROR, CRITICAL, WARN
+
 
 if sys.version_info >= (3, 8):
     from importlib import metadata as importlib_metadata
@@ -18,6 +21,6 @@ def get_version() -> str:
 
 version: str = get_version()
 
-from .core import log
+__all__ = ["log", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "WARN"]
 
-__all__ = ["log"]
+log.info
