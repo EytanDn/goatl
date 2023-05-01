@@ -126,10 +126,7 @@ addopts = [
   "--doctest-continue-on-failure",
 ]
 
-[tool.coverage.run]
-source = ["tests"]
-
-
+ 
 [tool.commitizen]
 name = "cz_conventional_commits"
 tag_format = "$version"
@@ -139,6 +136,13 @@ update_changelog_on_bump = true
 major_version_zero = true
 [coverage.paths]
 source = "goatl"
+
+[tool.coverage.run]
+source = ["tests"]
+
+
+[coverage.paths]
+source = "hooks"
 
 [coverage.run]
 branch = true
