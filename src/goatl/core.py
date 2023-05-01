@@ -273,7 +273,7 @@ def log(magic: Union[Wrappable, Reprable]=None, /,
     """
     
         
-    if isinstance(magic, Wrappable):
+    if isinstance(magic, Callable) or isinstance(magic, type(None)):
         log_kwargs = dict(
             message=message,
             level=level,
