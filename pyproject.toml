@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "goatl"
-version = "0.5.0"
+version = "0.5.1"
 description = "Greatest of all time logger"
 readme = "README.md"
 authors = ["goatl <EytanDn@gmail.com>"]

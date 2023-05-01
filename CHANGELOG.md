@@ -1,3 +1,10 @@
+## 0.5.1 (2023-05-01)
+
+### Fix
+
+- change typevar to union
+- maybe fix makefile for build?
+
 ## 0.5.0 (2023-05-01)
 
 ### Feat
