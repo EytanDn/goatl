@@ -134,12 +134,10 @@ version_type = "pep440"
 version_provider = "poetry"
 update_changelog_on_bump = true
 major_version_zero = true
-[coverage.paths]
-source = "goatl"
+
 
 [tool.coverage.run]
 source = ["tests"]
-
 
 [coverage.paths]
 source = "hooks"
