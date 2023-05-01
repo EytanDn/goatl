@@ -138,13 +138,21 @@ major_version_zero = true
 
 [tool.coverage.run]
 source = ["tests"]
+omit = [".*"]
 
-[coverage.paths]
-source = "hooks"
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "def __str__",
+  "if self.debug",
+  "if settings.DEBUG",
+  "if TYPE_CHECKING",
+]
 
 [coverage.run]
 branch = true
 
 [coverage.report]
-fail_under = 50
+fail_under = 95
 show_missing = true

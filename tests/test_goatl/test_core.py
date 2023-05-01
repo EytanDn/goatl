@@ -76,6 +76,8 @@ class TestFuncLogDecorator:
             def func():
                 pass
 
+        func()
+        
         assert func.__name__ == "func"
         assert func.__module__ == __name__
 
