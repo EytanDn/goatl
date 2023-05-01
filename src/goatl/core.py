@@ -3,6 +3,7 @@ import inspect
 import functools
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Union, TypeVar
+from .utils import _wrap_and_bind, _transfer_class_meta
 
 import sys
 _logger = logging.getLogger()
@@ -88,7 +89,8 @@ class CallLogParams:
     kwargs: Optional[dict] = field(default_factory=dict)
 
     def __post_init__(self): # TODO: seperate between level, call_level, reutrn_level
-        # if call_message is present use it, else use message if present, else use default
+        # if call_message is present use it, 
+        # else use message if present, else use default
         # if call_level is present use it, else use level if present, else use default
 
         self.call_log = Log._from_kwargs(self.kwargs, 
@@ -145,16 +147,6 @@ def _wrap_function(func: Callable,
 
     return wrapper
 
-def _transfer_class_meta(wrapped: type, wrapper: type) -> type:
-    """transfer meta data from wrapped to wrapper"""
-    wrapper.__name__ = wrapped.__name__
-    wrapper.__module__ = wrapped.__module__
-    wrapper.__qualname__ = wrapped.__qualname__
-    wrapper.__doc__ = wrapped.__doc__
-    wrapper.__annotations__ = wrapped.__annotations__
-    
-    return wrapper
-
 def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
     """wrap a class with a log"""
     
@@ -162,7 +154,8 @@ def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             
-            for name, value in inspect.getmembers(self): # TODO: what about static methods?
+            for name, value in inspect.getmembers(self): 
+                # TODO: what about static methods?
                 if name.startswith("__"):
                     continue
                 if name.startswith("_"):
@@ -179,19 +172,6 @@ def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
                 params.init_log(className=wrapped.__name__, args=args, kwargs=kwargs)
     
     return _transfer_class_meta(wrapped, Wrapper)
-
-def _wrap_and_bind(func: Callable,
-                  wrapper: Callable,
-                  *args,
-                  **kwargs) -> Callable:
-    """Wraps a method and binds it to the instance"""
-    func = getattr(func.__self__, func.__name__)
-    instance = func.__self__
-    wrapped = wrapper(getattr(instance.__class__, func.__name__), *args, **kwargs)
-    bound_method = wrapped.__get__(instance, instance.__class__)
-    setattr(instance, wrapped.__name__, bound_method)
-
-    return getattr(instance, wrapped.__name__)
 
 def _wrap(wrapped: Wrappable = None, **kwargs) -> Wrappable:
     """wrap a callable with a log"""
@@ -278,9 +258,10 @@ def log(magic: Union[Wrappable, Loggable]=None, /,
     >>> # INFO:root:foo returned 42
     
     ### Custom log message for class one class method:
+    >>> custom_message = "[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s"
     >>> @log
     ... class Bar:
-    ...     @log.info(return_message="[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s")
+    ...     @log.info(return_message=custom_message)
     ...     def bar(self):
     ...         return 42
     >>> Bar().bar()
@@ -322,7 +303,7 @@ def log(magic: Union[Wrappable, Loggable]=None, /,
         Log(message=magic, level=level, logger=logger)(*args, **kwargs)
 
 info: Callable = functools.partial(log, level=logging.INFO)
-setattr(log, "info", info)
+log.info = info
 debug: Callable = functools.partial(log, level=logging.DEBUG)
 setattr(log, "debug", debug)
 warning: Callable = functools.partial(log, level=logging.WARNING)
@@ -340,4 +321,4 @@ levels: dict[Callable, int] = {
     critical: logging.CRITICAL
 }
 
-setattr(log, "levels", levels)
+log.levels: dict[Callable, int] = levels
