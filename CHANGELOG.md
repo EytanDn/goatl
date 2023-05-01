@@ -1,4 +1,8 @@
-## Unreleased
+## 0.5.4 (2023-05-02)
+
+### Fix
+
+- fixed release versions
 
 ## 0.5.3 (2023-05-01)
 
