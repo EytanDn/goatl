@@ -4,11 +4,12 @@ import functools
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Union, TypeVar
 
-# _logger = logging.getLogger()
-# handler = logging.StreamHandler(stream=sys.stdout)
-# handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-# _logger.addHandler(handler)
-# _logger.setLevel(logging.DEBUG)
+import sys
+_logger = logging.getLogger()
+handler = logging.StreamHandler(stream=sys.stdout)
+handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+_logger.addHandler(handler)
+_logger.setLevel(logging.DEBUG)
 
 class BraceMessage(object):
     def __init__(self, fmt, *args, **kwargs):
@@ -17,7 +18,7 @@ class BraceMessage(object):
         self.kwargs = kwargs
 
     def __str__(self):
-        # warning maybe if not all args and kwargs are formatted? or missing?
+        # TODO: warning maybe if not all args and kwargs are formatted? or missing?
         return self.fmt.format(*self.args, **self.kwargs)
 
 DEFAULT_CALL_MESSAGE = "called {funcName} with {args} {kwargs}"
@@ -38,7 +39,16 @@ class Log:
     logger: Optional[logging.Logger] = None
     
     def __post_init__(self):
-        self.level = self.level or logging.INFO
+        if isinstance(self.level, str):
+            self.level = getattr(logging, self.level.upper())       
+        elif self.level in log.levels:
+            self.level = log.levels[self.level]
+        
+        if self.level is None:
+            _logger.warning(f"level is None, using default level {DEFAULT_CALL_LEVEL}")
+            self.level = DEFAULT_CALL_LEVEL
+        
+        self.message = self.message or DEFAULT_CALL_MESSAGE
         self.logger = self.logger or logging.getLogger()
     
     def __call__(self, *args, **kwargs) -> None:
@@ -46,38 +56,49 @@ class Log:
         args = (*self.args, *args)
         kwargs = {**self.kwargs, **kwargs}
         self.logger.log(self.level, BraceMessage(self.message, *args, **kwargs))
+    
+    @staticmethod
+    def _from_kwargs(kwargs: dict, 
+                    default_message: str, 
+                    default_level: int,
+                    prefix: str) -> "Log | None":
         
-    @staticmethod
-    def _default_call_log(**kwargs) -> "Log":
-        if not isinstance(kwargs.get("message", None), str):
-            kwargs["message"] = DEFAULT_CALL_MESSAGE
-        if kwargs.get("level", None) is None:
-            kwargs["level"] = DEFAULT_CALL_LEVEL
-        return Log(**kwargs)
+        message = kwargs.get(f"{prefix}_message", None)
+        level = kwargs.get(f"{prefix}_level", None)
+            
+        if not isinstance(message, str):
+            message = kwargs.get("message", None)
+            
+        if level is None:
+            level = kwargs.get("level", None)
+            
+        if not isinstance(message, str):
+            message = default_message
+            
+        if level is None:
+            level = default_level
+        
+        if message is None and level is None:
+            return None
+                
+        return Log(message=message, level=level, logger=kwargs.get("logger", None))
     
-    @staticmethod
-    def _default_return_log(**kwargs) -> "Log":
-        if not isinstance(kwargs.get("message", None), str):
-            kwargs["message"] = DEFAULT_RETURN_MESSAGE
-        if kwargs.get("level", None) is None:
-            kwargs["level"] = DEFAULT_RETURN_LEVEL
-        return Log(**kwargs)
-    
-    @staticmethod
-    def _default_init_log(**kwargs) -> "Log":
-        if not isinstance(kwargs.get("message", None), str):
-            kwargs["message"] = DEFAULT_INIT_MESSAGE
-        if kwargs.get("level", None) is None:
-            kwargs["level"] = DEFAULT_INIT_LEVEL 
-        return Log(**kwargs)
-
 @dataclass
 class CallLogParams:
     kwargs: Optional[dict] = field(default_factory=dict)
 
     def __post_init__(self): # TODO: seperate between level, call_level, reutrn_level
-        self.call_log = Log._default_call_log(**self.kwargs)
-        self.return_log = Log._default_return_log(**self.kwargs)
+        # if call_message is present use it, else use message if present, else use default
+        # if call_level is present use it, else use level if present, else use default
+
+        self.call_log = Log._from_kwargs(self.kwargs, 
+                                          DEFAULT_CALL_MESSAGE, 
+                                          DEFAULT_CALL_LEVEL,
+                                          prefix="call") 
+        self.return_log = Log._from_kwargs(self.kwargs, 
+                                        DEFAULT_RETURN_MESSAGE,
+                                        DEFAULT_RETURN_LEVEL,
+                                        prefix="return")
 
 @dataclass
 class ClassLogParams:
@@ -87,8 +108,20 @@ class ClassLogParams:
         self.method_log: Optional[CallLogParams] = CallLogParams(kwargs=self.kwargs)
         self.private_log: Optional[CallLogParams] = None
         self.property_log: Optional[CallLogParams] = None
-        self.init_log: Optional[Log] = Log._default_init_log(**self.kwargs)
-
+        self.init_log: Optional[Log] = Log._from_kwargs(self.kwargs, 
+                                                         DEFAULT_INIT_MESSAGE,
+                                                         DEFAULT_INIT_LEVEL,
+                                                         prefix="init")
+        
+        if any([key.startswith("private") 
+                for key, value in self.kwargs.items() 
+                if value is not None]):
+            p_kwargs = {
+                "message": self.kwargs.get("private_message", None),
+                "level": self.kwargs.get("private_level", None)
+            }
+            self.private_log = CallLogParams(kwargs={**self.kwargs, **p_kwargs})
+            
 Loggable = TypeVar('Loggable', str, bool, int, float, list, dict, tuple, set, None)
 Wrappable = TypeVar('Wrappable', Callable, type)
 
@@ -112,7 +145,16 @@ def _wrap_function(func: Callable,
 
     return wrapper
 
-                
+def _transfer_class_meta(wrapped: type, wrapper: type) -> type:
+    """transfer meta data from wrapped to wrapper"""
+    wrapper.__name__ = wrapped.__name__
+    wrapper.__module__ = wrapped.__module__
+    wrapper.__qualname__ = wrapped.__qualname__
+    wrapper.__doc__ = wrapped.__doc__
+    wrapper.__annotations__ = wrapped.__annotations__
+    
+    return wrapper
+
 def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
     """wrap a class with a log"""
     
@@ -136,13 +178,7 @@ def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
             if params.init_log:
                 params.init_log(className=wrapped.__name__, args=args, kwargs=kwargs)
     
-    Wrapper.__name__ = wrapped.__name__
-    Wrapper.__module__ = wrapped.__module__
-    Wrapper.__qualname__ = wrapped.__qualname__
-    Wrapper.__doc__ = wrapped.__doc__
-    Wrapper.__annotations__ = wrapped.__annotations__
-    
-    return Wrapper
+    return _transfer_class_meta(wrapped, Wrapper)
 
 def _wrap_and_bind(func: Callable,
                   wrapper: Callable,
@@ -162,17 +198,28 @@ def _wrap(wrapped: Wrappable = None, **kwargs) -> Wrappable:
     if inspect.isclass(wrapped):
         class_log_params = ClassLogParams(kwargs)
         return _wrap_class(wrapped, class_log_params)
-    else:
+    else: # TODO: maybe seperate between class kwargs and function kwargs
         call_log_params = CallLogParams(kwargs)
         return _wrap_function(wrapped, call_log_params)
 
 
-def log(magic: Union[Wrappable, Loggable]=None, *args, 
-        level: int=None,
-        logger: logging.Logger=None,
+def log(magic: Union[Wrappable, Loggable]=None, /,
+        *args,
+        message: Optional[str]=None,
+        level: Optional[int]=None,
+        logger: Optional[logging.Logger]=None,
+        call_message: Optional[str]=None,
+        call_level: Optional[int]=None,
+        return_message: Optional[str]=None,
+        return_level: Optional[int]=None,
+        init_message: Optional[str]=None,
+        init_level: Optional[int]=None,
+        private_message: Optional[str]=None,
+        private_level: Optional[int]=None,
+        property_message: Optional[str]=None,
+        property_level: Optional[int]=None,
         **kwargs) -> Union[Wrappable, None]:
     """catch-all log method of goatl
-    
     
     ## mymodule.py:
     >>> from goatl import log
@@ -189,14 +236,13 @@ def log(magic: Union[Wrappable, Loggable]=None, *args,
     # ### method wrapper: 
     # it will log the function call and return value
     
-    # >>> @log
-    # ... def foo(x):
-    # ...    return x * 2
-    # >>> foo(21)
-    # 42
-    # ... # INFO:root:called foo with x=21
-    # ... # DEBUG:root:foo returned 42
-    
+    >>> @log
+    ... def foo(x):
+    ...    return x * 2
+    >>> foo(21)
+    42
+    >>> # INFO:root:called foo with x=21
+    >>> # DEBUG:root:foo returned 42
     
     ### class decorator: 
     it will apply the log method to all methods of the class
@@ -204,48 +250,67 @@ def log(magic: Union[Wrappable, Loggable]=None, *args,
     private methods (i.e methods starting with _) will not be logged by default
     property getters and setters will not be logged by default # TODO:decide on this
     
-    ```python
-    @log
-    class Foo:
-        def __init__(self, x):
-            self.x = x
-        def bar(self):
-            return self.x * 2 
-    Foo(21).bar()
-    # INFO:root:Initialized Foo <@objectid>  with x=21
-    # INFO:root:called Foo.bar with self=<@objectid>
-    # DEBUG:root:Foo.bar returned 42
-    ```
-
+    
+    >>> @log
+    ... class Foo:
+    ...    def __init__(self, x):
+    ...        self.x = x
+    ...    def foo(self):
+    ...        return self.x * 2 
+    >>> f = Foo(21)
+    ... # INFO:root:initialized Foo with x=21
+    >>> f.foo()
+    42
+    >>> # INFO:root:called Foo.foo with self=<__main__.Foo object at 0x7f9b1c0e5a90>
+    >>> # DEBUG:root:Foo.foo returned 42
+    
     ## Customization
     method and class decoration is highly customizable
     few examples of possible customizations:
     
     ### Custom log level:
-    # >>> @log(level="DEBUG", return_level="INFO")
-    # >>> def foo(x):
-    # >>>     return x * 2
-    # >>> foo(21)
-    # >>> # DEBUG:root:called foo with x=21
-    # >>> # INFO:root:foo returned 42
+    >>> @log.debug(return_level="INFO")
+    ... def foo(x):
+    ...     return x * 2
+    >>> foo(21)
+    42
+    >>> # DEBUG:root:called foo with x=21
+    >>> # INFO:root:foo returned 42
     
     ### Custom log message for class one class method:
-    # >>> @log
-    # >>> class Foo:
-    # >>>    @log(message="[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s")
-    # >>>    def bar(self):
-    # >>>         return 42
-    # >>> Foo().bar()
-    # >>> # [2021-01-01 00:00:00] INFO: 42 from Foo.bar
+    >>> @log
+    ... class Bar:
+    ...     @log.info(return_message="[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s")
+    ...     def bar(self):
+    ...         return 42
+    >>> Bar().bar()
+    42
+    >>> # [2021-01-01 00:00:00] INFO: 42 from Foo.bar
 
     see the documentation for more details
     Args:
     """
     
+        
     if isinstance(magic, Union[type, Callable, type(None)]):
+        log_kwargs = dict(
+            message=message,
+            level=level,
+            call_message=call_message,
+            call_level=call_level,
+            return_message=return_message,
+            return_level=return_level,
+            init_message=init_message,
+            init_level=init_level,
+            private_message=private_message,
+            private_level=private_level,
+            property_message=property_message,
+            property_level=property_level,
+            logger=logger,
+        )
         
         def decorate(wrapped: Wrappable) -> Wrappable:
-            return _wrap(wrapped, level=level, logger=logger, **kwargs)
+            return _wrap(wrapped, **log_kwargs, **kwargs)
         
         if magic is None:
             return decorate
@@ -253,11 +318,23 @@ def log(magic: Union[Wrappable, Loggable]=None, *args,
     else:
         Log(message=magic, level=level, logger=logger)(*args, **kwargs)
 
-        
-setattr(log, "info", functools.partial(log, level=logging.INFO))
-setattr(log, "debug", functools.partial(log, level=logging.DEBUG))
-setattr(log, "warning", functools.partial(log, level=logging.WARNING))
-setattr(log, "warn", functools.partial(log, level=logging.WARN))
-setattr(log, "error", functools.partial(log, level=logging.ERROR))
-setattr(log, "critical", functools.partial(log, level=logging.CRITICAL))
+info: Callable = functools.partial(log, level=logging.INFO)
+setattr(log, "info", info)
+debug: Callable = functools.partial(log, level=logging.DEBUG)
+setattr(log, "debug", debug)
+warning: Callable = functools.partial(log, level=logging.WARNING)
+setattr(log, "warning", warning)  
+error: Callable = functools.partial(log, level=logging.ERROR)
+setattr(log, "error", error)
+critical: Callable = functools.partial(log, level=logging.CRITICAL)
+setattr(log, "critical", critical)
 
+levels: dict[Callable, int] = {
+    info: logging.INFO,
+    debug: logging.DEBUG,
+    warning: logging.WARNING,
+    error: logging.ERROR,
+    critical: logging.CRITICAL
+}
+
+setattr(log, "levels", levels)
