@@ -1,11 +1,11 @@
+<div align="center">
+<img src="assets/images/goatlbanner.png" alt="goatl logo"/>
+
+</div>
+
+---
+
 # goatl
-
-```
-some body please prompt midjourney for "Cartoonish goat scribing on a long scroll oil painting, --ar  2:1"
-and make abanner for here.
-```
-
-##
 
 <div align="center">
 
