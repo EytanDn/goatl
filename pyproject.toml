@@ -5,7 +5,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry]
 name = "goatl"
 version = "0.5.4"
-description = "Greatest of all time logger"
+description = "The goat logger"
 readme = "README.md"
 authors = ["goatl <EytanDn@gmail.com>"]
 license = "MIT"
@@ -21,6 +21,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -28,7 +29,7 @@ classifiers = [
 
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 
 [tool.poetry.dev-dependencies]
 bandit = "^1.7.1"
@@ -85,7 +86,7 @@ color_output = true
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
-python_version = 3.9
+python_version = 3.9 #currently unused
 pretty = true
 show_traceback = true
 color_output = true

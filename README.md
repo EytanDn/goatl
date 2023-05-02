@@ -14,7 +14,6 @@ and make abanner for here.
 [![Dependencies Status](https://img.shields.io/badge/dependencies-up%20to%20date-brightgreen.svg)](https://github.com/EytanDn/goatl/pulls?utf8=%E2%9C%93&q=is%3Apr%20author%3Aapp%2Fdependabot)
 
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/EytanDn/goatl/blob/master/.pre-commit-config.yaml)
 ![Coverage Report](assets/images/coverage.svg)
 
 </div>
@@ -41,6 +40,27 @@ the magic "log" function.
 from goatl import log
 ```
 
+goatl usage is all about the log
+
+### two important core concepts
+
+In order to justify the existence of goatl,
+it must fulfill three important core concepts:
+
+1. Unobtrusive - it should not interfere\* with the existing code.
+2. Ease of use - using it should be intuitive and pythonic.
+3. Clean - the amount of code added to the existing code should be minimal.
+
+<sub>\* - logging will always carry a performative cost, goatl will aim at keeping it to a minimum.</sub>
+
+### means of achieving the core concepts
+
+extensive testing of goatl must be implemented to ensure that it does not interfere with the existing code.
+it should be tested by wrapping other popular libraries and modules with goatl.
+this will ensure that goatl does not interfere with the existing code.
+performance tests should be implemented to measure the performance cost of goatl,
+it should not exceed a reasonable threshold, in comparison to adding logging manually.
+
 ### main features
 
 the log function provides an easy interace for:
@@ -48,13 +68,13 @@ the log function provides an easy interace for:
 - out of and in context log calls
 - wrapping existing functions with log calls
 - wrapping existing classes with log calls
+- wrapping existing modules with log calls #not implemented yet, is this even possible?
 - logging configuration #not implemented yet
+- support multiple logging backends #not implemented yet
 
 all in an intuitive and pythonic way.
 
 ## Usage
-
-goatl usage is all about the log
 
 ### as a function
 
@@ -134,7 +154,7 @@ This project is licensed under the terms of the `MIT` license. See [LICENSE](htt
 ```bibtex
 @misc{goatl,
   author = {goatl},
-  title = {Greatest of all time logger},
+  title = {goat logger},
   year = {2023},
   publisher = {GitHub},
   journal = {GitHub repository},
