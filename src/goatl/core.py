@@ -1,3 +1,5 @@
+import sys
+import os
 import logging
 import inspect
 import functools
@@ -5,12 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Union, TypeVar, Tuple, Dict
 from .utils import _wrap_and_bind, _transfer_class_meta
 
-import sys
-_logger = logging.getLogger()
-handler = logging.StreamHandler(stream=sys.stdout)
-handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-_logger.addHandler(handler)
-_logger.setLevel(logging.DEBUG)
 
 class BraceMessage(object):
     def __init__(self, fmt, *args, **kwargs):
@@ -46,7 +42,7 @@ class Log:
             self.level = log.levels[self.level]
         
         if self.level is None:
-            _logger.warning(f"level is None, using default level {DEFAULT_CALL_LEVEL}")
+            # _logger.warning(f"level is None, using default level {DEFAULT_CALL_LEVEL}")
             self.level = DEFAULT_CALL_LEVEL
         
         self.message = self.message or DEFAULT_CALL_MESSAGE
@@ -269,6 +265,12 @@ def log(magic: Union[Wrappable, Reprable]=None, /,
     >>> # [2021-01-01 00:00:00] INFO: 42 from Foo.bar
 
     see the documentation for more details
+    
+    ## logging configuration:
+    ### configure the root logger:
+    undecided yet
+    
+    
     Args:
     """
     
@@ -302,6 +304,7 @@ def log(magic: Union[Wrappable, Reprable]=None, /,
         
         Log(message=magic, level=level, logger=logger)(*args, **kwargs)
 
+# TODO: will experiment with turning log into a class and see if it makes sense
 info: Callable = functools.partial(log, level=logging.INFO)
 log.info = info
 debug: Callable = functools.partial(log, level=logging.DEBUG)
@@ -313,6 +316,8 @@ setattr(log, "error", error)
 critical: Callable = functools.partial(log, level=logging.CRITICAL)
 setattr(log, "critical", critical)
 
+# I would like to have introspection through the log method
+
 levels: Dict[Callable, int] = {
     info: logging.INFO,
     debug: logging.DEBUG,
@@ -322,3 +327,71 @@ levels: Dict[Callable, int] = {
 }
 
 log.levels: Dict[Callable, int] = levels
+
+
+#TODO: all of this will probably move 
+# behind an interface to allow for different logging backends
+setattr(log, "getLogger", logging.getLogger) 
+setattr(log, "basicConfig", logging.basicConfig)
+setattr(log, "Formatter", logging.Formatter)
+setattr(log, "FileHandler", logging.FileHandler)
+setattr(log, "StreamHandler", logging.StreamHandler)
+
+
+def _add_stdout_handler(fmt: logging.Formatter| str=None,
+                        logger: logging.Logger=None, 
+                        level: int=logging.INFO):
+    """shortcut to add a stdout handler to the root logger"""
+    assert logger is None or isinstance(logger, logging.Logger), \
+                                    "logger must be a logging.Logger"
+    assert isinstance(level, int) or level in levels, \
+                                    "level must be an int or a log.level"
+    assert isinstance(fmt, logging.Formatter | str) or fmt is None, \
+                                    "fmt must be a logging.Formatter or a string"
+    
+    handler = logging.StreamHandler(stream=sys.stdout)
+    if logger is None:
+        logger = logging.getLogger()
+        
+    if isinstance(fmt, str):
+        handler.setFormatter(logging.Formatter(fmt))
+    elif isinstance(fmt, logging.Formatter):
+        handler.setFormatter(fmt)
+    
+    logger.addHandler(handler)
+    logger.setLevel(levels.get(level, level))
+    
+setattr(log, "addStdoutHandler", _add_stdout_handler)
+
+
+def _add_file_handler(filename: str=None, 
+                      fmt: logging.Formatter| str=None,
+                      logger: logging.Logger=None, 
+                      level: int=logging.INFO):
+    """shortcut to add a file handler to the root logger
+    if filename is not provided, it will be set to the name of the current script 
+    with a .log extension 
+    """
+    assert filename is None or isinstance(filename, str), \
+                                    "filename must be a string"
+    assert logger is None or isinstance(logger, logging.Logger), \
+                                    "logger must be a logging.Logger"
+    assert isinstance(level, int) or level in levels, \
+                                    "level must be an int or a log.level"
+    assert isinstance(fmt, logging.Formatter | str) or fmt is None, \
+                                    "fmt must be a logging.Formatter or a string"
+                    
+    filename = filename or os.path.splitext(os.path.basename(sys.argv[0]))[0]
+    filename = filename.replace(" ", "_") + ".log"
+    handler = logging.FileHandler(filename=filename)
+    if isinstance(fmt, str):
+        handler.setFormatter(logging.Formatter(fmt))
+    elif isinstance(fmt, logging.Formatter):
+        handler.setFormatter(fmt)
+    
+    if logger is None:
+        logger = logging.getLogger()
+    logger.addHandler(handler)
+    logger.setLevel(levels.get(level, level))
+
+setattr(log, "addFileHandler", _add_file_handler)

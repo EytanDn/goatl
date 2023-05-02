@@ -42,38 +42,6 @@ from goatl import log
 
 goatl usage is all about the log
 
-### two important core concepts
-
-In order to justify the existence of goatl,
-it must fulfill three important core concepts:
-
-1. Unobtrusive - it should not interfere\* with the existing code.
-2. Ease of use - using it should be intuitive and pythonic.
-3. Clean - the amount of code added to the existing code should be minimal.
-
-<sub>\* - logging will always carry a performative cost, goatl will aim at keeping it to a minimum.</sub>
-
-### means of achieving the core concepts
-
-extensive testing of goatl must be implemented to ensure that it does not interfere with the existing code.
-it should be tested by wrapping other popular libraries and modules with goatl.
-this will ensure that goatl does not interfere with the existing code.
-performance tests should be implemented to measure the performance cost of goatl,
-it should not exceed a reasonable threshold, in comparison to adding logging manually.
-
-### main features
-
-the log function provides an easy interace for:
-
-- out of and in context log calls
-- wrapping existing functions with log calls
-- wrapping existing classes with log calls
-- wrapping existing modules with log calls #not implemented yet, is this even possible?
-- logging configuration #not implemented yet
-- support multiple logging backends #not implemented yet
-
-all in an intuitive and pythonic way.
-
 ## Usage
 
 ### as a function
@@ -138,6 +106,60 @@ foo.baz()
 # ... WARNING - Foo.baz called with args: (), kwargs: {}
 # ... WARNING - Foo.baz returned: 2
 ```
+
+### configurations shortcuts
+
+```python
+file_formatter = log.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+log.addFileHandler("foo.log", fmt=file_formatter)
+log.addStreamHandler(fmt="%(levelname)s - %(message)s")
+log.basicConfig(...)
+log.setFormat(...)
+log.setLevel(...)
+```
+
+### logging interface #not implemented yet
+
+I do plan to implement goatl's interaction with logging through an interface
+such that it will be possible to use goatl with any logging backend.
+
+```python
+log.setBackend(logging)
+log.setBackend(loguru)
+logger = log.getLogger("foo")
+```
+
+## core concepts
+
+In order to justify the existence of goatl,
+it must fulfill three important core concepts:
+
+1. Unobtrusive - it should not interfere\* with the existing code.
+2. Ease of use - using it should be intuitive and pythonic.
+3. Clean - the amount of code added to the existing code should be minimal.
+
+<sub>\* - logging will always carry a performative cost, goatl will aim at keeping it to a minimum.</sub>
+
+### means
+
+extensive testing of goatl must be implemented to ensure that it does not interfere with the existing code.
+it should be tested by wrapping other popular libraries and modules with goatl.
+this will ensure that goatl does not interfere with the existing code.
+performance tests should be implemented to measure the performance cost of goatl,
+it should not exceed a reasonable threshold, in comparison to adding logging manually.
+
+### main features
+
+the log function provides an easy interace for:
+
+- out of and in context log calls
+- wrapping existing functions with log calls
+- wrapping existing classes with log calls
+- wrapping existing modules with log calls #not implemented yet, is this even possible?
+- logging configuration #not implemented yet
+- support multiple logging backends #not implemented yet
+
+all in an intuitive and pythonic way.
 
 ## Releases
 
