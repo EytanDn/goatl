@@ -1,3 +1,9 @@
+## 0.6.2 (2023-05-02)
+
+### Fix
+
+- handlers annotations 3.8 comp
+
 ## 0.6.1 (2023-05-02)
 
 ### Fix
