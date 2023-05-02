@@ -2,7 +2,7 @@ import logging
 import inspect
 import functools
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Union, TypeVar
+from typing import Any, Callable, Optional, Union, TypeVar, Tuple, Dict
 from .utils import _wrap_and_bind, _transfer_class_meta
 
 import sys
@@ -34,8 +34,8 @@ class Log:
     level: Optional[int] = None
     message: Optional[str] = None
     
-    args: Optional[tuple] = field(default_factory=tuple)
-    kwargs: Optional[dict] = field(default_factory=dict)
+    args: Optional[Tuple] = field(default_factory=tuple)
+    kwargs: Optional[Dict] = field(default_factory=dict)
     
     logger: Optional[logging.Logger] = None
     
@@ -59,7 +59,7 @@ class Log:
         self.logger.log(self.level, BraceMessage(self.message, *args, **kwargs))
     
     @staticmethod
-    def _from_kwargs(kwargs: dict, 
+    def _from_kwargs(kwargs: Dict, 
                     default_message: str, 
                     default_level: int,
                     prefix: str) -> "Log | None":
@@ -86,7 +86,7 @@ class Log:
     
 @dataclass
 class CallLogParams:
-    kwargs: Optional[dict] = field(default_factory=dict)
+    kwargs: Optional[Dict] = field(default_factory=dict)
 
     def __post_init__(self): # TODO: seperate between level, call_level, reutrn_level
         # if call_message is present use it, 
@@ -104,7 +104,7 @@ class CallLogParams:
 
 @dataclass
 class ClassLogParams:
-    kwargs: Optional[dict] = field(default_factory=dict)
+    kwargs: Optional[Dict] = field(default_factory=dict)
 
     def __post_init__(self):
         self.method_log: Optional[CallLogParams] = CallLogParams(kwargs=self.kwargs)
@@ -184,7 +184,7 @@ def _wrap(wrapped: Wrappable = None, **kwargs) -> Wrappable:
 
 
 def log(magic: Union[Wrappable, Reprable]=None, /,
-        *args: Optional[tuple[Any]],
+        *args: Optional[Tuple[Any]],
         message: Optional[str]=None,
         level: Optional[int]=None,
         logger: Optional[logging.Logger]=None,
@@ -313,7 +313,7 @@ setattr(log, "error", error)
 critical: Callable = functools.partial(log, level=logging.CRITICAL)
 setattr(log, "critical", critical)
 
-levels: dict[Callable, int] = {
+levels: Dict[Callable, int] = {
     info: logging.INFO,
     debug: logging.DEBUG,
     warning: logging.WARNING,
@@ -321,4 +321,4 @@ levels: dict[Callable, int] = {
     critical: logging.CRITICAL
 }
 
-log.levels: dict[Callable, int] = levels
+log.levels: Dict[Callable, int] = levels
