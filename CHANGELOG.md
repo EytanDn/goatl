@@ -1,3 +1,10 @@
+## Unreleased
+
+### Fix
+
+- replace generic typing
+- check 3.8 compatiable
+
 ## 0.5.4 (2023-05-02)
 
 ### Fix
