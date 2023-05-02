@@ -346,7 +346,7 @@ def _add_stdout_handler(fmt: logging.Formatter| str=None,
                                     "logger must be a logging.Logger"
     assert isinstance(level, int) or level in levels, \
                                     "level must be an int or a log.level"
-    assert isinstance(fmt, logging.Formatter | str) or fmt is None, \
+    assert not isinstance(fmt,(logging.Formatter, str, type(None))), \
                                     "fmt must be a logging.Formatter or a string"
     
     handler = logging.StreamHandler(stream=sys.stdout)
@@ -378,7 +378,7 @@ def _add_file_handler(filename: str=None,
                                     "logger must be a logging.Logger"
     assert isinstance(level, int) or level in levels, \
                                     "level must be an int or a log.level"
-    assert isinstance(fmt, logging.Formatter | str) or fmt is None, \
+    assert not isinstance(fmt,(logging.Formatter, str, type(None))), \
                                     "fmt must be a logging.Formatter or a string"
                     
     filename = filename or os.path.splitext(os.path.basename(sys.argv[0]))[0]
