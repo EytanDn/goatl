@@ -114,8 +114,6 @@ file_formatter = log.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messa
 log.addFileHandler("foo.log", fmt=file_formatter)
 log.addStreamHandler(fmt="%(levelname)s - %(message)s")
 log.basicConfig(...)
-log.setFormat(...)
-log.setLevel(...)
 ```
 
 ### logging interface #not implemented yet
