@@ -338,9 +338,9 @@ setattr(log, "FileHandler", logging.FileHandler)
 setattr(log, "StreamHandler", logging.StreamHandler)
 
 
-def _add_stdout_handler(fmt: logging.Formatter| str=None,
-                        logger: logging.Logger=None, 
-                        level: int=logging.INFO):
+def _add_stdout_handler(fmt: Union[logging.Formatter, str]=None,
+                      logger: Optional[logging.Logger]=None, 
+                      level: Optional[int]=logging.INFO):
     """shortcut to add a stdout handler to the root logger"""
     assert logger is None or isinstance(logger, logging.Logger), \
                                     "logger must be a logging.Logger"
@@ -364,10 +364,10 @@ def _add_stdout_handler(fmt: logging.Formatter| str=None,
 setattr(log, "addStdoutHandler", _add_stdout_handler)
 
 
-def _add_file_handler(filename: str=None, 
-                      fmt: logging.Formatter| str=None,
-                      logger: logging.Logger=None, 
-                      level: int=logging.INFO):
+def _add_file_handler(filename: Optional[str]=None, 
+                      fmt: Union[logging.Formatter, str]=None,
+                      logger: Optional[logging.Logger]=None, 
+                      level: Optional[int]=logging.DEBUG):
     """shortcut to add a file handler to the root logger
     if filename is not provided, it will be set to the name of the current script 
     with a .log extension 
