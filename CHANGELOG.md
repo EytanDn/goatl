@@ -1,3 +1,9 @@
+## Unreleased
+
+### Feat
+
+-  basic and default logging confs
+
 ## 0.5.5 (2023-05-02)
 
 ### Fix
