@@ -75,7 +75,7 @@ foo(1, 2)
 # ... DEBUG - foo returned: 3
 bar()
 # ... DEBUG - bar called with args: (), kwargs: {}
-# ... INFO - bar returned: hello world
+# ... DEBUG - bar returned: hello world
 baz(3)
 # ... DEBUG - baz called with args: (3,), kwargs: {}
 # ... INFO - baz returned: 6
