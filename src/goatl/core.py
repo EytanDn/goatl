@@ -342,12 +342,14 @@ def _add_stdout_handler(fmt: Union[logging.Formatter, str]=None,
                       logger: Optional[logging.Logger]=None, 
                       level: Optional[int]=logging.INFO):
     """shortcut to add a stdout handler to the root logger"""
-    assert logger is None or isinstance(logger, logging.Logger), \
-                                    "logger must be a logging.Logger"
+    if logger is not None:
+        assert isinstance(logger, logging.Logger), \
+                "logger must be a logging.Logger"
     assert isinstance(level, int) or level in levels, \
-                                    "level must be an int or a log.level"
-    assert not isinstance(fmt,(logging.Formatter, str, type(None))), \
-                                    "fmt must be a logging.Formatter or a string"
+                "level must be an int or a log.level"
+    if fmt is not None:
+        assert isinstance(fmt,(logging.Formatter, str)), \
+                "fmt must be a logging.Formatter or a string"
     
     handler = logging.StreamHandler(stream=sys.stdout)
     if logger is None:
@@ -372,14 +374,17 @@ def _add_file_handler(filename: Optional[str]=None,
     if filename is not provided, it will be set to the name of the current script 
     with a .log extension 
     """
-    assert filename is None or isinstance(filename, str), \
-                                    "filename must be a string"
-    assert logger is None or isinstance(logger, logging.Logger), \
-                                    "logger must be a logging.Logger"
+    if filename is not None:
+        assert isinstance(filename, str), \
+                "filename must be a string"
+    if logger is not None:
+        assert isinstance(logger, logging.Logger), \
+                "logger must be a logging.Logger"
     assert isinstance(level, int) or level in levels, \
-                                    "level must be an int or a log.level"
-    assert not isinstance(fmt,(logging.Formatter, str, type(None))), \
-                                    "fmt must be a logging.Formatter or a string"
+                "level must be an int or a log.level"
+    if fmt is not None:
+        assert isinstance(fmt,(logging.Formatter, str)), \
+                "fmt must be a logging.Formatter or a string"
                     
     filename = filename or os.path.splitext(os.path.basename(sys.argv[0]))[0]
     filename = filename.replace(" ", "_") + ".log"
