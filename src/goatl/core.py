@@ -273,6 +273,12 @@ def log(magic: Union[Wrappable, Reprable]=None, /,
     
     Args:
     """
+    if logger is not None:
+        if isinstance(logger, str):
+            logger = logging.getLogger(logger)
+        else:
+            assert isinstance(logger, logging.Logger), \
+                "logger must be a string or a logger"
     
         
     if isinstance(magic, Callable) or isinstance(magic, type(None)):

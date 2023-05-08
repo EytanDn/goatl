@@ -151,6 +151,18 @@ class TestFuncLogDecorator:
 
             for record in caplog.records:
                 assert record.levelno == level
+                
+    def test_log_custom_logger(self, caplog):
+        
+        @goatl.log(logger="custom_logger")
+        def func():
+            pass
+         
+        with caplog.at_level(logging.DEBUG, logger="custom_logger"):
+            func()
+            
+            for record in caplog.records:
+                assert record.name == "custom_logger"            
 
 
 class TestClassLogDecorator:
@@ -281,4 +293,18 @@ class TestClassLogDecorator:
             
             for record in caplog.records:
                 assert record.levelno == level
+                
+    def test_custom_logger_over_class(self, caplog):
+        
+        @goatl.log(logger="custom_logger")
+        class Class:
+            def func(self):
+                pass
+            
+        with caplog.at_level(logging.DEBUG, logger="custom_logger"):
+            instance = Class()
+            instance.func()
+            
+            assert caplog.records[0].name == "custom_logger"
+            assert caplog.records[1].name == "custom_logger"
 
