@@ -307,4 +307,24 @@ class TestClassLogDecorator:
             
             assert caplog.records[0].name == "custom_logger"
             assert caplog.records[1].name == "custom_logger"
+            
+    def test_wrap_class_in_class(self, caplog):
+        
+        @goatl.log
+        class Class:
+            
+            class InnerClass:
+                pass
+            
+            def func(self):
+                return self.InnerClass()
+                
+        with caplog.at_level(logging.DEBUG):
+            instance = Class()
+            ret = instance.func()
+            
+            assert caplog.records[0].message == "Initialized Class with () {}"
+            assert caplog.records[1].message == "called func with (%s,) {}" % instance
+            assert caplog.records[2].message == "Initialized InnerClass with () {}"
+            assert caplog.records[3].message == "func returned %s" % ret
 

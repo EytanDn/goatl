@@ -160,9 +160,11 @@ def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
                 elif isinstance(value, property):
                     if params.property_log:
                         _wrap_and_bind(value.fget, _wrap_function, params.property_log)
-                elif callable(value):
+                elif inspect.ismethod(value) or inspect.isfunction(value):
                     if params.method_log:
                         _wrap_and_bind(value, _wrap_function, params.method_log)
+                elif inspect.isclass(value):
+                    setattr(self, name, _wrap_class(value, params))
                         
             if params.init_log:
                 params.init_log(className=wrapped.__name__, args=args, kwargs=kwargs)
