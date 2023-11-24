@@ -20,5 +20,3 @@ def get_version() -> str:
 version: str = get_version()
 
 __all__ = ["log"]
-
-log.info
