@@ -125,9 +125,9 @@ def wrap_class(
             if log_init is False:
                 continue
             elif log_init is None or log_init is True:
-                log_init = LogParams(DEFAULTS.INIT_MSG, DEFAULTS.INIT_LEVEL)
+                log_init = LogParams(DEFAULTS.INIT_MSG, DEFAULTS.INIT_LEVEL, logger)
             elif isinstance(log_init, LogLevel):
-                log_init = LogParams(DEFAULTS.INIT_MSG, log_init)
+                log_init = LogParams(DEFAULTS.INIT_MSG, log_init, logger)
 
             setattr(
                 cls,

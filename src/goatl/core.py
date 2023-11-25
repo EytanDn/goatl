@@ -62,7 +62,7 @@ class log:
         **params: Unpack[MethodLogParams],
     ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
         """Log a message with a given level
-        >>> log.log("Message", logging.INFO)
+        >>> log.log(logging.INFO, "Test message")
         """
         if isinstance(m, str):
             get_logger(logger).log(level, m)
@@ -95,7 +95,8 @@ class log:
         **params: Unpack[MethodLogParams],
     ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
         if isinstance(f, str):
-            return log.log(logging.WARN, f, logger)
+            log.log(logging.WARN, f, logger)
+            return None
         elif callable(f):
             return wrap_function(f, logger, level=logging.WARN, **params)
         else:
