@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "goatl"
-version = "0.6.5"
+version = "0.7.5"
 description = "The goat logger"
 readme = "README.md"
 authors = ["goatl <EytanDn@gmail.com>"]
@@ -20,16 +20,12 @@ classifiers = [
   "Operating System :: OS Independent",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "License :: OSI Approved :: MIT License",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
 ]
 
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.11"
 
 [tool.poetry.dev-dependencies]
 bandit = "^1.7.1"
@@ -86,7 +82,7 @@ color_output = true
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
-python_version = 3.9 #currently unused
+mypy_path = "docs/stubs"
 pretty = true
 show_traceback = true
 color_output = true
@@ -139,6 +135,7 @@ major_version_zero = true
 [tool.coverage.run]
 source = ["tests"]
 omit = [".*"]
+branch = true
 
 [tool.coverage.report]
 exclude_lines = [
@@ -149,10 +146,5 @@ exclude_lines = [
   "if settings.DEBUG",
   "if TYPE_CHECKING",
 ]
-
-[coverage.run]
-branch = true
-
-[coverage.report]
 fail_under = 95
 show_missing = true

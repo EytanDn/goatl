@@ -3,6 +3,9 @@
 
 import sys
 from .core import log
+from .data import LogParams, MethodLogParams, ClassLogParams
+from .defaults import DEFAULTS
+
 
 if sys.version_info >= (3, 8):
     from importlib import metadata as importlib_metadata
@@ -19,4 +22,12 @@ def get_version() -> str:
 
 version: str = get_version()
 
-__all__ = ["log"]
+__all__ = [
+    "log",
+    "LogParams",
+    "MethodLogParams",
+    "ClassLogParams",
+    "DEFAULTS",
+    "version",
+]
+

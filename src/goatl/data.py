@@ -17,8 +17,9 @@ C = TypeVar("C", bound=Type[Any])
 
 Logger = Union[logging.Logger, str]
 "a logger object or a logger name"
-LogLevel = int
-"logging.(DEBUG|INFO|WARN|ERROR|CRITICAL)"
+
+class LogLevel(int):
+    "logging.(DEBUG|INFO|WARN|ERROR|CRITICAL)"
 
 
 class LogParams(NamedTuple):
@@ -40,15 +41,3 @@ class ClassLogParams(TypedDict, total=False):
     log_init: Optional[Union[LogParams, bool]]
     log_methods: Optional[Union[MethodLogParams, bool, LogLevel]]
     log_prvt_mthd: Optional[Union[MethodLogParams, bool, LogLevel]]
-
-    
-__all__ = [
-    "P",
-    "R",
-    "Logger",
-    "LogLevel",
-    "LogParams",
-    "MethodLogParams",
-    "ClassLogParams",
-    "DEFAULTS",
-]
