@@ -82,7 +82,7 @@ color_output = true
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html#using-a-pyproject-toml-file
-mypy_path = "docs/stubs"
+mypy_path = ["stubs"]
 pretty = true
 show_traceback = true
 color_output = true
