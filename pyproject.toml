@@ -93,6 +93,7 @@ color_output = true
 
 allow_redefinition = false
 check_untyped_defs = true
+enable_incomplete_feature = ["Unpack"]
 disallow_any_generics = true
 disallow_incomplete_defs = true
 ignore_missing_imports = true

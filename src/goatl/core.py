@@ -1,427 +1,558 @@
-import sys
-import os
 import logging
-import inspect
-import functools
-from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, Union, TypeVar, Tuple, Dict
-from .utils import _wrap_and_bind, _transfer_class_meta
+from functools import wraps
+from types import FunctionType
+from typing import (
+    Any,
+    Callable,
+    Type,
+    TypeVar,
+    Union,
+    Optional,
+    overload,
+    TypedDict,
+    NamedTuple,
+)
+from typing_extensions import ParamSpec, Unpack, Annotated
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+Logger = Union[logging.Logger, str]
+LogLevel = Annotated[
+    int,
+    "logging.DEBUG | logging.INFO | logging.WARN | logging.ERROR | logging.CRITICAL",
+]
 
 
-class BraceMessage(object):
-    def __init__(self, fmt, *args, **kwargs):
-        self.fmt = fmt
-        self.args = args
-        self.kwargs = kwargs
-
-    def __str__(self):
-        # TODO: warning maybe if not all args and kwargs are formatted? or missing?
-        return self.fmt.format(*self.args, **self.kwargs)
+class LogParams(NamedTuple):
+    msg: str
+    level: LogLevel
+    logger: Optional[Logger] = None
 
 
-DEFAULT_CALL_MESSAGE = "called {funcName} with {args} {kwargs}"
-DEFAULT_RETURN_MESSAGE = "{funcName} returned {_return}"
-DEFAULT_INIT_MESSAGE = "Initialized {className} with {args} {kwargs}"
-DEFAULT_CALL_LEVEL = logging.INFO
-DEFAULT_RETURN_LEVEL = logging.DEBUG
-DEFAULT_INIT_LEVEL = logging.INFO
+class MethodLogParams(TypedDict, total=False):
+    call_msg: Optional[str]
+    call_level: Optional[LogLevel]
+    return_msg: Optional[str]
+    return_level: Optional[LogLevel]
 
 
-@dataclass(slots=True)
-class Log:
-    level: Optional[int] = None
-    message: Optional[str] = None
-
-    args: Optional[Tuple] = field(default_factory=tuple)
-    kwargs: Optional[Dict] = field(default_factory=dict)
-
-    logger: Optional[logging.Logger] = None
-
-    def __post_init__(self):
-        if isinstance(self.level, str):
-            self.level = getattr(logging, self.level.upper())
-        elif self.level in log.levels:
-            self.level = log.levels[self.level]
-
-        if self.level is None:
-            # _logger.warning(f"level is None, using default level {DEFAULT_CALL_LEVEL}")
-            self.level = DEFAULT_CALL_LEVEL
-
-        self.message = self.message or DEFAULT_CALL_MESSAGE
-        self.logger = self.logger or logging.getLogger()
-
-    def __call__(self, *args, **kwargs) -> None:
-        """log the message"""
-        args = (*self.args, *args)
-        kwargs = {**self.kwargs, **kwargs}
-        self.logger.log(self.level, BraceMessage(self.message, *args, **kwargs))
-
-    @staticmethod
-    def _from_kwargs(
-        kwargs: Dict, default_message: str, default_level: int, prefix: str
-    ) -> "Log | None":
-        message = kwargs.get(f"{prefix}_message", None)
-        level = kwargs.get(f"{prefix}_level", None)
-
-        if not isinstance(message, str):
-            message = kwargs.get("message", None)
-
-        if level is None:
-            level = kwargs.get("level", None)
-
-        if not isinstance(message, str):
-            message = default_message
-
-        if level is None:
-            level = default_level
-
-        if message is None and level is None:
-            return None
-
-        return Log(message=message, level=level, logger=kwargs.get("logger", None))
+class ClassLogParams(TypedDict, total=False):
+    log_init: Optional[Union[LogParams, bool]]
+    log_methods: Optional[Union[MethodLogParams, bool, LogLevel]]
+    log_prvt_mthd: Optional[Union[MethodLogParams, bool, LogLevel]]
 
 
-@dataclass
-class CallLogParams:
-    kwargs: Optional[Dict] = field(default_factory=dict)
-
-    def __post_init__(self):  # TODO: seperate between level, call_level, reutrn_level
-        # if call_message is present use it,
-        # else use message if present, else use default
-        # if call_level is present use it, else use level if present, else use default
-
-        self.call_log = Log._from_kwargs(
-            self.kwargs, DEFAULT_CALL_MESSAGE, DEFAULT_CALL_LEVEL, prefix="call"
-        )
-        self.return_log = Log._from_kwargs(
-            self.kwargs, DEFAULT_RETURN_MESSAGE, DEFAULT_RETURN_LEVEL, prefix="return"
-        )
+class DEFAULTS:
+    CALL_MSG = "Calling {funcName} with {args} and {kwargs}"
+    RETURN_MSG = "Returned {result}"
+    CALL_LEVEL = logging.INFO
+    RETURN_LEVEL = logging.DEBUG
+    INIT_MSG = "Initialized {args[0]}"
+    INIT_LEVEL = logging.DEBUG
 
 
-@dataclass
-class ClassLogParams:
-    kwargs: Optional[Dict] = field(default_factory=dict)
+def get_logger(logger: Optional[Logger]) -> logging.Logger:
+    if isinstance(logger, logging.Logger):
+        pass
+    elif isinstance(logger, str):
+        logger = logging.getLogger(logger)
+    else:
+        logger = logging.getLogger(__name__)
 
-    def __post_init__(self):
-        self.method_log: Optional[CallLogParams] = CallLogParams(kwargs=self.kwargs)
-        self.private_log: Optional[CallLogParams] = None
-        self.property_log: Optional[CallLogParams] = None
-        self.init_log: Optional[Log] = Log._from_kwargs(
-            self.kwargs, DEFAULT_INIT_MESSAGE, DEFAULT_INIT_LEVEL, prefix="init"
-        )
-
-        if any(
-            [
-                key.startswith("private")
-                for key, value in self.kwargs.items()
-                if value is not None
-            ]
-        ):
-            p_kwargs = {
-                "message": self.kwargs.get("private_message", None),
-                "level": self.kwargs.get("private_level", None),
-            }
-            self.private_log = CallLogParams(kwargs={**self.kwargs, **p_kwargs})
+    return logger
 
 
-Reprable = TypeVar("Reprable", Callable, type)
-Wrappable = Union[Callable, type(None)]
+def wrap_function(
+    f: Callable[P, R],
+    logger: Optional[Logger] = None,
+    level: Optional[LogLevel] = None,
+    **params: Unpack[MethodLogParams],
+) -> Callable[P, R]:
+    if getattr(f, "__log_wrapped__", False):
+        return f
+    
+    funcName = f.__name__
 
+    call_msg = params.get("call_msg", DEFAULTS.CALL_MSG)
+    call_level = params.get("call_level", level or DEFAULTS.CALL_LEVEL)
+    return_msg = params.get("return_msg", DEFAULTS.RETURN_MSG)
+    return_level = params.get("return_level", level or DEFAULTS.RETURN_LEVEL)
 
-def _wrap_function(func: Callable, params: CallLogParams) -> Callable:
-    """wrap a function with a log"""
+    @wraps(f)
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        if call_msg is not None and call_level is not None:
+            get_logger(logger).log(
+                call_level, call_msg.format(funcName=funcName, args=args, kwargs=kwargs)
+            )
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if params.call_log:
-            params.call_log(funcName=func.__name__, args=args, kwargs=kwargs)
+        result = f(*args, **kwargs)
 
-        return_value = func(*args, **kwargs)
+        if return_msg is not None and return_level is not None:
+            get_logger(logger).log(
+                return_level, return_msg.format(funcName=funcName, result=result)
+            )
 
-        if params.return_log:
-            params.return_log(funcName=func.__name__, _return=return_value)
+        return result
 
-        return return_value
-
-    setattr(wrapper, "__log_params__", params)
-
+    setattr(wrapper, "__log_wrapped__", True)
+    
     return wrapper
 
 
-def _wrap_class(wrapped: type, params: ClassLogParams) -> type:
-    """wrap a class with a log"""
+C = TypeVar("C", bound=Type[Any])
 
-    class Wrapper(wrapped):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-
-            for name, value in inspect.getmembers(self):
-                # TODO: what about static methods?
-                if name.startswith("__"):
-                    continue
-                if name.startswith("_"):
-                    if params.private_log:
-                        _wrap_and_bind(value, _wrap_function, params.private_log)
-                elif isinstance(value, property):
-                    if params.property_log:
-                        _wrap_and_bind(value.fget, _wrap_function, params.property_log)
-                elif inspect.ismethod(value) or inspect.isfunction(value):
-                    if params.method_log:
-                        _wrap_and_bind(value, _wrap_function, params.method_log)
-                elif inspect.isclass(value):
-                    setattr(self, name, _wrap_class(value, params))
-
-            if params.init_log:
-                params.init_log(className=wrapped.__name__, args=args, kwargs=kwargs)
-
-    return _transfer_class_meta(wrapped, Wrapper)
-
-
-def _wrap(wrapped: Wrappable = None, **kwargs) -> Wrappable:
-    """wrap a callable with a log"""
-    if inspect.isclass(wrapped):
-        class_log_params = ClassLogParams(kwargs)
-        return _wrap_class(wrapped, class_log_params)
-    else:  # TODO: maybe seperate between class kwargs and function kwargs
-        call_log_params = CallLogParams(kwargs)
-        return _wrap_function(wrapped, call_log_params)
-
-
-def log(
-    magic: Union[Wrappable, Reprable] = None,
-    /,
-    *args: Optional[Tuple[Any]],
-    message: Optional[str] = None,
-    level: Optional[int] = None,
-    logger: Optional[logging.Logger] = None,
-    call_message: Optional[str] = None,
-    call_level: Optional[int] = None,
-    return_message: Optional[str] = None,
-    return_level: Optional[int] = None,
-    init_message: Optional[str] = None,
-    init_level: Optional[int] = None,
-    private_message: Optional[str] = None,
-    private_level: Optional[int] = None,
-    property_message: Optional[str] = None,
-    property_level: Optional[int] = None,
-    **kwargs,
-) -> Union[Wrappable, None]:
-    """catch-all log method of goatl
-
-    ## mymodule.py:
-    >>> from goatl import log
-
-    ### function:
-    log can be used in a similar to the logging module
-
-    >>> log("hello world")
-    ... # INFO:root:hello world
-
-    >>> log.debug("hello world")
-    ... # DEBUG:root:hello world
-
-    # ### method wrapper:
-    # it will log the function call and return value
-
-    >>> @log
-    ... def foo(x):
-    ...    return x * 2
-    >>> foo(21)
-    42
-    >>> # INFO:root:called foo with x=21
-    >>> # DEBUG:root:foo returned 42
-
-    ### class decorator:
-    it will apply the log method to all methods of the class
-    __init__ which will be logged as an initialization
-    private methods (i.e methods starting with _) will not be logged by default
-    property getters and setters will not be logged by default # TODO:decide on this
-
-
-    >>> @log
-    ... class Foo:
-    ...    def __init__(self, x):
-    ...        self.x = x
-    ...    def foo(self):
-    ...        return self.x * 2
-    >>> f = Foo(21)
-    ... # INFO:root:initialized Foo with x=21
-    >>> f.foo()
-    42
-    >>> # INFO:root:called Foo.foo with self=<__main__.Foo object at 0x7f9b1c0e5a90>
-    >>> # DEBUG:root:Foo.foo returned 42
-
-    ## Customization
-    method and class decoration is highly customizable
-    few examples of possible customizations:
-
-    ### Custom log level:
-    >>> @log.debug(return_level="INFO")
-    ... def foo(x):
-    ...     return x * 2
-    >>> foo(21)
-    42
-    >>> # DEBUG:root:called foo with x=21
-    >>> # INFO:root:foo returned 42
-
-    ### Custom log message for class one class method:
-    >>> custom_message = "[%(asctime)s] %(levelname)s: %(return)s from %(funcName)s"
-    >>> @log
-    ... class Bar:
-    ...     @log.info(return_message=custom_message)
-    ...     def bar(self):
-    ...         return 42
-    >>> Bar().bar()
-    42
-    >>> # [2021-01-01 00:00:00] INFO: 42 from Foo.bar
-
-    see the documentation for more details
-
-    ## logging configuration:
-    ### configure the root logger:
-    undecided yet
-
-
-    Args:
-    """
-    if logger is not None:
-        if isinstance(logger, str):
-            logger = logging.getLogger(logger)
+def get_method_log_params(p: Optional[Union[MethodLogParams, bool, LogLevel]], none_is_true: bool = False) -> Optional[MethodLogParams]:
+    if p is None:
+        if none_is_true:
+            return MethodLogParams()
         else:
-            assert isinstance(
-                logger, logging.Logger
-            ), "logger must be a string or a logger"
+            return None
+    elif p is True:
+        return MethodLogParams()
+    elif isinstance(p, int):
+        return MethodLogParams(call_level=p, return_level=p)
+    else:
+        return p
 
-    if isinstance(magic, Callable) or isinstance(magic, type(None)):
-        log_kwargs = dict(
-            message=message,
-            level=level,
-            call_message=call_message,
-            call_level=call_level,
-            return_message=return_message,
-            return_level=return_level,
-            init_message=init_message,
-            init_level=init_level,
-            private_message=private_message,
-            private_level=private_level,
-            property_message=property_message,
-            property_level=property_level,
-            logger=logger,
+
+def wrap_class(
+    cls: C,
+    /,
+    level: Optional[LogLevel] = None,
+    logger: Optional[Logger] = None,
+    log_init: Optional[Union[LogParams, bool, LogLevel]] = None,
+    log_methods: Optional[Union[MethodLogParams, bool, LogLevel]] = None,
+    log_prvt_mthd: Optional[Union[MethodLogParams, bool, LogLevel]] = None,
+) -> C:
+    log_methods = get_method_log_params(log_methods, none_is_true=True)
+    log_prvt_mthd = get_method_log_params(log_prvt_mthd)
+    for name, value in cls.__dict__.items():
+        if log_methods and isinstance(value, classmethod):
+            setattr(
+                cls,
+                name,
+                classmethod(
+                    wrap_function(
+                        value.__func__, level=level, logger=logger, **log_methods
+                    )
+                ),
+            )
+        elif log_methods and isinstance(value, staticmethod):
+            setattr(
+                cls,
+                name,
+                staticmethod(
+                    wrap_function(
+                        value.__func__, level=level, logger=logger, **log_methods
+                    )
+                ),
+            )
+
+        if not isinstance(value, FunctionType):
+            continue
+
+        if name == "__init__":
+            if log_init is False:
+                continue
+            elif log_init is None or log_init is True:
+                log_init = LogParams(DEFAULTS.INIT_MSG, DEFAULTS.INIT_LEVEL)
+            elif isinstance(log_init, LogLevel):
+                log_init = LogParams(DEFAULTS.INIT_MSG, log_init)
+
+            setattr(
+                cls,
+                name,
+                wrap_function(
+                    value,
+                    level=log_init.level or level,
+                    call_msg=log_init.msg,
+                    logger=logger,
+                    return_msg=None,
+                ),
+            )
+            continue
+        elif log_prvt_mthd and name.startswith("_"):
+            setattr(
+                cls,
+                name,
+                wrap_function(
+                    value,
+                    logger=logger,
+                    level=level,
+                    **log_prvt_mthd,
+                ),
+            )
+            continue
+        elif log_methods is None:
+            continue
+        
+        setattr(
+            cls,
+            name,
+            wrap_function(value, level=level, logger=logger, **log_methods),
         )
 
-        def decorate(wrapped: Wrappable) -> Wrappable:
-            return _wrap(wrapped, **log_kwargs, **kwargs)
-
-        if magic is None:
-            return decorate
-        return decorate(magic)
-    else:
-        if level is None:  # TODO: maybe search for level in current score?
-            level = logging.INFO
-
-        Log(message=magic, level=level, logger=logger)(*args, **kwargs)
+    return cls
 
 
-# TODO: will experiment with turning log into a class and see if it makes sense
-info: Callable = functools.partial(log, level=logging.INFO)
-log.info = info
-debug: Callable = functools.partial(log, level=logging.DEBUG)
-setattr(log, "debug", debug)
-warning: Callable = functools.partial(log, level=logging.WARNING)
-setattr(log, "warning", warning)
-error: Callable = functools.partial(log, level=logging.ERROR)
-setattr(log, "error", error)
-critical: Callable = functools.partial(log, level=logging.CRITICAL)
-setattr(log, "critical", critical)
+class log:
+    @overload
+    @staticmethod
+    def wrap(f: Callable[P, R], /) -> Callable[P, R]:
+        """Wrap a function with default logging parameters
+        >>> @log.wrap
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
 
-# I would like to have introspection through the log method
+        """
 
-levels: Dict[Callable, int] = {
-    info: logging.INFO,
-    debug: logging.DEBUG,
-    warning: logging.WARNING,
-    error: logging.ERROR,
-    critical: logging.CRITICAL,
-}
+    @overload
+    @staticmethod
+    def wrap(
+        f: None = None,
+        /,
+        level: Optional[LogLevel] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """Wrap a function with custom logging parameters
+        >>> @log.wrap(level=logging.WARN, call_level=logging.DEBUG)
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
 
-log.levels: Dict[Callable, int] = levels
+    @staticmethod
+    def wrap(
+        f: Optional[Callable[P, R]] = None,
+        /,
+        level: Optional[LogLevel] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R]]:
+        def decorator(f: Callable[P, R]) -> Callable[P, R]:
+            return wrap_function(f, logger, level, **params)
+
+        if f is None:
+            return decorator
+        else:
+            return decorator(f)
+
+    @overload
+    @staticmethod
+    def wrap_class(
+        f: C,
+        /,
+        **params: Unpack[ClassLogParams],
+    ) -> C:
+        """Wrap a class with default logging parameters
+        >>> @log.wrap_class
+        ... class A:
+        ...     def __init__(self, a: int, b: str) -> None:
+        ...         pass
+        ...     def method(self, a: int, b: str) -> str:
+        ...         return f"Method called with {a} and {b}"
+        ...     def _private_method(self, a: int, b: str) -> str:
+        ...         return f"Private method called with {a} and {b}"
+        A(1, "a")
+        """
+
+    @overload
+    @staticmethod
+    def wrap_class(
+        f: None = None,
+        /,
+        level: Optional[LogLevel] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[ClassLogParams],
+    ) -> Callable[[C], C]:
+        """Wrap a class with custom logging parameters
+        >>> @log.wrap_class(log_init=False, log_method={"call_level":logging.DEBUG})
+        ... class A:
+        ...     def __init__(self, a: int, b: str) -> None:
+        ...         pass
+        ...     def method(self, a: int, b: str) -> str:
+        ...         return f"Method called with {a} and {b}"
+        ...     def _private_method(self, a: int, b: str) -> str:
+        ...         return f"Private method called with {a} and {b}"
+        A(1, "a")
+        """
+
+    @staticmethod
+    def wrap_class(
+        f: Optional[C] = None,
+        /,
+        level: Optional[LogLevel] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[ClassLogParams],
+    ) -> Union[C, Callable[[C], C]]:
+        def decorator(cls: C) -> C:
+            return wrap_class(cls, level, logger, **params)
+
+        if f is None:
+            return decorator
+        else:
+            return decorator(f)
+
+    @staticmethod
+    def log(
+        level: LogLevel,
+        m: Union[Optional[Callable[P, R]], str] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
+        """Log a message with a given level
+        >>> log.log("Message", logging.INFO)
+        """
+        if isinstance(m, str):
+            get_logger(logger).log(level, m)
+            return None
+        elif callable(m):
+            return wrap_function(m, logger, level=level, **params)
+        else:
+            return log.wrap(None, logger=logger, level=level, **params)
+
+    @overload
+    @staticmethod
+    def info(f: str, /, logger: Optional[Logger] = None) -> None:
+        """Log a message with the INFO level
+        >>> log.info("Message")
+        """
+
+    @overload
+    @staticmethod
+    def info(f: Callable[P, R]) -> Callable[P, R]:
+        """Wrap a function with INFO level logging
+        >>> @log.info
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @overload
+    @staticmethod
+    def info(
+        f: None = None,
+        /,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """Wrap a function with custom INFO level logging
+        >>> @log.info(call_level=logging.DEBUG)
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @staticmethod
+    def info(
+        f: Union[Optional[Callable[P, R]], str] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
+        return log.log(logging.INFO, f, logger, **params)
+
+    @overload
+    @staticmethod
+    def debug(f: str, /, logger: Optional[Logger] = None) -> None:
+        """Log a message with the DEBUG level
+        >>> log.debug("Message")
+        """
+
+    @overload
+    @staticmethod
+    def debug(f: Callable[P, R]) -> Callable[P, R]:
+        """Wrap a function with DEBUG level logging
+        >>> @log.debug
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @overload
+    @staticmethod
+    def debug(
+        f: None = None,
+        /,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """Wrap a function with custom DEBUG level logging
+        >>> @log.debug(return_level=logging.INFO)
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @staticmethod
+    def debug(
+        f: Union[Optional[Callable[P, R]], str] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
+        return log.log(logging.DEBUG, f, logger, **params)
+
+    @overload
+    @staticmethod
+    def warn(f: str, /, logger: Optional[Logger] = None) -> None:
+        """Log a message with the WARN level
+        >>> log.warn("Message")
+        """
+
+    @overload
+    @staticmethod
+    def warn(f: Callable[P, R]) -> Callable[P, R]:
+        """Wrap a function with WARN level logging
+        >>> @log.warn
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @overload
+    @staticmethod
+    def warn(
+        f: None = None,
+        /,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """Wrap a function with custom WARN level logging
+        >>> @log.warn(return_level=logging.INFO)
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @staticmethod
+    def warn(
+        f: Union[Optional[Callable[P, R]], str] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
+        if isinstance(f, str):
+            return log.log(logging.WARN, f, logger)
+        elif callable(f):
+            return wrap_function(f, logger, level=logging.WARN, **params)
+        else:
+            return log.wrap(None, logger=logger, level=logging.WARN, **params)
+
+    @overload
+    @staticmethod
+    def error(f: str, /, logger: Optional[Logger] = None) -> None:
+        """Log a message with the ERROR level
+        >>> log.error("Message")
+        """
+
+    @overload
+    @staticmethod
+    def error(f: Callable[P, R]) -> Callable[P, R]:
+        """Wrap a function with ERROR level logging
+        >>> @log.error
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @overload
+    @staticmethod
+    def error(
+        f: None = None,
+        /,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """Wrap a function with custom ERROR level logging
+        >>> @log.error(return_level=logging.INFO)
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @staticmethod
+    def error(
+        f: Union[Optional[Callable[P, R]], str] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
+        if isinstance(f, str):
+            return log.log(logging.ERROR, f, logger)
+        elif callable(f):
+            return wrap_function(f, logger, level=logging.ERROR, **params)
+        else:
+            return log.wrap(None, logger=logger, level=logging.ERROR, **params)
+
+    @overload
+    @staticmethod
+    def critical(f: str, /, logger: Optional[Logger] = None) -> None:
+        """Log a message with the CRITICAL level
+        >>> log.critical("Message")
+        """
+
+    @overload
+    @staticmethod
+    def critical(f: Callable[P, R]) -> Callable[P, R]:
+        """Wrap a function with CRITICAL level logging
+        >>> @log.critical
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @overload
+    @staticmethod
+    def critical(
+        f: None = None,
+        /,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
+        """Wrap a function with custom CRITICAL level logging
+        >>> @log.critical(return_level=logging.INFO)
+        ... def func(a: int, b: str) -> str:
+        ...     return f"Function called with {a} and {b}"
+        func(1, "a")
+        """
+
+    @staticmethod
+    def critical(
+        f: Union[Optional[Callable[P, R]], str] = None,
+        logger: Optional[Logger] = None,
+        **params: Unpack[MethodLogParams],
+    ) -> Union[Callable[[Callable[P, R]], Callable[P, R]], Callable[P, R], None]:
+        if isinstance(f, str):
+            return log.log(logging.CRITICAL, f, logger)
+        elif callable(f):
+            return wrap_function(f, logger, level=logging.CRITICAL, **params)
+        else:
+            return log.wrap(None, logger=logger, level=logging.CRITICAL, **params)
 
 
-# TODO: all of this will probably move
-# behind an interface to allow for different logging backends
-setattr(log, "getLogger", logging.getLogger)
-setattr(log, "basicConfig", logging.basicConfig)
-setattr(log, "Formatter", logging.Formatter)
-setattr(log, "FileHandler", logging.FileHandler)
-setattr(log, "StreamHandler", logging.StreamHandler)
+@log.wrap_class(log_init=False, log_methods=False)
+class A:
+    def __init__(self, a: int, b: str) -> None:
+        pass
+
+    def method(self, a: int, b: str) -> str:
+        return f"Method called with {a} and {b}"
+
+    def method2(self, a: int, b: str) -> str:
+        return f"Method called with {a} and {b}"
+
+    def method3(self, a: int, b: str) -> str:
+        return f"Method called with {a} and {b}"
 
 
-def _add_stdout_handler(
-    fmt: Union[logging.Formatter, str] = None,
-    logger: Optional[logging.Logger] = None,
-    level: Optional[int] = logging.INFO,
-):
-    """shortcut to add a stdout handler to the root logger"""
-    if logger is not None:
-        assert isinstance(logger, logging.Logger), "logger must be a logging.Logger"
-    assert (
-        isinstance(level, int) or level in levels
-    ), "level must be an int or a log.level"
-    if fmt is not None:
-        assert isinstance(
-            fmt, (logging.Formatter, str)
-        ), "fmt must be a logging.Formatter or a string"
-
-    handler = logging.StreamHandler(stream=sys.stdout)
-    if logger is None:
-        logger = logging.getLogger()
-
-    if isinstance(fmt, str):
-        handler.setFormatter(logging.Formatter(fmt))
-    elif isinstance(fmt, logging.Formatter):
-        handler.setFormatter(fmt)
-
+if __name__ == "__main__":
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(levelname)s - %(name)s: %(message)s")
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(__name__)
     logger.addHandler(handler)
-    logger.setLevel(levels.get(level, level))
+    logger.setLevel(logging.DEBUG)
 
-
-setattr(log, "addStdoutHandler", _add_stdout_handler)
-
-
-def _add_file_handler(
-    filename: Optional[str] = None,
-    fmt: Union[logging.Formatter, str] = None,
-    logger: Optional[logging.Logger] = None,
-    level: Optional[int] = logging.DEBUG,
-):
-    """shortcut to add a file handler to the root logger
-    if filename is not provided, it will be set to the name of the current script
-    with a .log extension
-    """
-    if filename is not None:
-        assert isinstance(filename, str), "filename must be a string"
-    if logger is not None:
-        assert isinstance(logger, logging.Logger), "logger must be a logging.Logger"
-    assert (
-        isinstance(level, int) or level in levels
-    ), "level must be an int or a log.level"
-    if fmt is not None:
-        assert isinstance(
-            fmt, (logging.Formatter, str)
-        ), "fmt must be a logging.Formatter or a string"
-
-    filename = filename or os.path.splitext(os.path.basename(sys.argv[0]))[0]
-    filename = filename.replace(" ", "_") + ".log"
-    handler = logging.FileHandler(filename=filename)
-    if isinstance(fmt, str):
-        handler.setFormatter(logging.Formatter(fmt))
-    elif isinstance(fmt, logging.Formatter):
-        handler.setFormatter(fmt)
-
-    if logger is None:
-        logger = logging.getLogger()
-    logger.addHandler(handler)
-    logger.setLevel(levels.get(level, level))
-
-
-setattr(log, "addFileHandler", _add_file_handler)
+    a = A(1, "a")
+    a.method(1, "a")
+    a.method2(1, "a")
