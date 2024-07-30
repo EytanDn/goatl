@@ -128,3 +128,5 @@ class log:
         else:
             return log.wrap(None, logger=logger, level=logging.CRITICAL, **params)
 
+    
+    

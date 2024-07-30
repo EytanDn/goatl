@@ -23,27 +23,28 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
 ]
 
-
 [tool.poetry.dependencies]
 python = "^3.11"
 
-[tool.poetry.dev-dependencies]
-bandit = "^1.7.1"
-black = {version = "^23.3", allow-prereleases = true}
+
+[tool.poetry.group.dev.dependencies]
+bandit = "^1.7.5"
 darglint = "^1.8.1"
-isort = {extras = ["colors"], version = "^5.10.1"}
-mypy = "^1.0"
-mypy-extensions = "^0.4.3"
-pre-commit = "^3.2.2"
-pydocstyle = "^6.1.1"
-pylint = "^2.11.1"
-pytest = "^7.3.1"
-pyupgrade = "^3.3.2"
+black = {version = "^23.3", allow-prereleases = true}
+isort = {extras = ["colors"], version = "^5.12.0"}
+mypy = "^1.7.1"
+mypy-extensions = "1.0.0"
+pre-commit = "^3.5.0"
+pydocstyle = "^6.3.0"
+pylint = "^3.0.2"
+pytest = "^7.4.3"
+pyupgrade = "^3.15.0"
 safety = "^2.3.5"
-coverage = "^7.2.5"
+coverage = "^7.3.2"
 coverage-badge = "^1.1.0"
-pytest-html = "^3.1.1"
-pytest-cov = "^4.0.0"
+pytest-html = "^4.1.1"
+pytest-cov = "^4.1.0"
+poethepoet = "^0.24.4"
 
 [tool.black]
 # https://github.com/psf/black
@@ -86,7 +87,6 @@ mypy_path = ["stubs"]
 pretty = true
 show_traceback = true
 color_output = true
-
 allow_redefinition = false
 check_untyped_defs = true
 enable_incomplete_feature = ["Unpack"]
@@ -133,8 +133,8 @@ major_version_zero = true
 
 
 [tool.coverage.run]
-source = ["tests"]
-omit = [".*"]
+source = ["src*"]
+#omit = [".*"]
 branch = true
 
 [tool.coverage.report]
@@ -148,3 +148,6 @@ exclude_lines = [
 ]
 fail_under = 95
 show_missing = true
+
+[tool.poe.tasks]
+test = "echo 'Hello world'"
